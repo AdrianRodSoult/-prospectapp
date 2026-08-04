@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Response
 from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
@@ -11,7 +11,7 @@ from app.models.models import (
     ProspectingProfile, User, SuppressionEntry, Activity, ConfidenceLevel, DataSourceType,
     ProviderUsage,
 )
-from app.providers.business_data_provider import get_places_provider
+from app.providers.business_data_provider import search_with_fallback
 from app.providers.website_auditor import audit_website, audit_website_mock
 from app.providers.ai_provider import get_ai_provider
 from app.services.opportunity_engine import detect_opportunities
@@ -31,7 +31,8 @@ def _urldomain(url: str | None) -> str | None:
 
 
 @router.post("/searches", response_model=list[BusinessOut])
-def run_search(payload: SearchCreate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+def run_search(payload: SearchCreate, response: Response, db: Session = Depends(get_db),
+                current_user: User = Depends(get_current_user)):
     profile = db.query(ProspectingProfile).filter(
         ProspectingProfile.id == payload.profile_id, ProspectingProfile.user_id == current_user.id
     ).first()
@@ -39,13 +40,24 @@ def run_search(payload: SearchCreate, db: Session = Depends(get_db), current_use
         raise HTTPException(404, "Perfil no encontrado")
 
     max_results = min(payload.max_results, settings.MAX_RESULTS_PER_SEARCH)
-    provider = get_places_provider()
-    result = provider.search(payload.city, payload.niche, payload.region, payload.radius_km, max_results)
+    result = search_with_fallback(payload.city, payload.niche, payload.region, payload.radius_km, max_results)
+
+    # Modo real de datos de esta búsqueda concreta, para que el frontend
+    # pueda avisar con transparencia si se usó demo, real, o real-con-fallback.
+    if result.fallback_used:
+        data_source_mode = "live_fallback_mock"
+    elif result.source == "google_places_api":
+        data_source_mode = "live"
+    else:
+        data_source_mode = "mock"
+    response.headers["X-Data-Source"] = data_source_mode
+    if result.fallback_used and result.fallback_reason:
+        response.headers["X-Data-Source-Warning"] = result.fallback_reason[:200]
 
     search = Search(
         profile_id=profile.id, city=payload.city, region=payload.region, niche=payload.niche,
         radius_km=payload.radius_km, max_results=max_results,
-        source_mode="live" if settings.PLACES_MODE == "live" else "mock",
+        source_mode=data_source_mode,
         estimated_cost_usd=result.estimated_cost_usd,
         filters=payload.model_dump(exclude={"profile_id", "city", "region", "niche", "radius_km", "max_results"}),
     )
@@ -104,11 +116,13 @@ def run_search(payload: SearchCreate, db: Session = Depends(get_db), current_use
         if is_suppressed:
             biz.crm_stage = "excluido"
 
-        # --- Auditoría web (mock o real según disponibilidad de red) ---
+        # --- Auditoría web: solo tiene sentido auditar de verdad si los negocios
+        # de esta búsqueda son reales. Si hubo fallback a demo, las webs también
+        # son ficticias, así que se audita en modo mock para no perder tiempo/red.
         audit_finding = None
         if biz.website_url:
             try:
-                if settings.PLACES_MODE == "live":
+                if data_source_mode == "live":
                     audit_finding = audit_website(biz.website_url)
                 else:
                     audit_finding = audit_website_mock(biz.website_url)

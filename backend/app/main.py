@@ -23,6 +23,10 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    # Necesario para que el frontend pueda leer de qué fuente vinieron los
+    # datos de una búsqueda (real / demo / real-con-fallback). Sin esto el
+    # navegador oculta las cabeceras personalizadas aunque el backend las envíe.
+    expose_headers=["X-Data-Source", "X-Data-Source-Warning"],
 )
 
 app.include_router(auth.router)

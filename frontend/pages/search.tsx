@@ -34,6 +34,8 @@ export default function Search() {
       });
       const ids = resp.data.map((b: any) => b.id);
       window.sessionStorage.setItem("last_search_business_ids", JSON.stringify(ids));
+      window.sessionStorage.setItem("last_search_data_source", resp.headers["x-data-source"] || "mock");
+      window.sessionStorage.setItem("last_search_data_warning", resp.headers["x-data-source-warning"] || "");
       router.push("/results");
     } catch (err: any) {
       setError(err?.response?.data?.detail || "No se pudo completar la búsqueda.");
