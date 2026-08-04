@@ -6,6 +6,7 @@ from app.core.database import Base, engine
 from app.api import auth, profiles, search, export, gmail, compliance
 
 settings = get_settings()
+print("CORS:",settings.CORS_ORIGINS)
 
 Base.metadata.create_all(bind=engine)
 
