@@ -6,7 +6,6 @@ from app.core.database import Base, engine
 from app.api import auth, profiles, search, export, gmail, compliance
 
 settings = get_settings()
-print("CORS:",settings.CORS_ORIGINS)
 
 Base.metadata.create_all(bind=engine)
 
@@ -20,6 +19,7 @@ app = FastAPI(
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.CORS_ORIGINS,
+    allow_origin_regex=r"https://prospectapp-[a-zA-Z0-9-]+\.vercel\.app",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
