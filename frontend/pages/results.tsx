@@ -8,8 +8,16 @@ export default function Results() {
   const [businesses, setBusinesses] = useState<any[]>([]);
   const [sortBy, setSortBy] = useState("score");
   const [loading, setLoading] = useState(true);
+  const [dataSource, setDataSource] = useState<string | null>(null);
+  const [dataWarning, setDataWarning] = useState<string | null>(null);
 
   useEffect(() => { load(); }, [sortBy]);
+
+  useEffect(() => {
+    setDataSource(window.sessionStorage.getItem("last_search_data_source"));
+    const warning = window.sessionStorage.getItem("last_search_data_warning");
+    setDataWarning(warning || null);
+  }, []);
 
   function load() {
     setLoading(true);
@@ -29,6 +37,23 @@ export default function Results() {
             <option value="rating">Ordenar: valoración</option>
           </select>
         </div>
+
+        {dataSource === "live" && (
+          <div className="rounded-xl bg-mossLight border border-moss/30 text-moss text-sm px-4 py-2.5 mb-4">
+            ✓ Datos reales de Google Places
+          </div>
+        )}
+        {dataSource === "mock" && (
+          <div className="rounded-xl bg-line/40 border border-line text-ink/60 text-sm px-4 py-2.5 mb-4">
+            Modo demostración — datos de ejemplo, no negocios reales.
+          </div>
+        )}
+        {dataSource === "live_fallback_mock" && (
+          <div className="rounded-xl bg-clay/10 border border-clay/30 text-clay text-sm px-4 py-2.5 mb-4">
+            ⚠ No se pudo conectar con Google Places, así que se muestran datos de
+            demostración como respaldo. {dataWarning && <span className="block text-xs mt-1 opacity-80">{dataWarning}</span>}
+          </div>
+        )}
 
         {loading && <p className="text-sm text-ink/50">Cargando…</p>}
         {!loading && businesses.length === 0 && (

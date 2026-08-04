@@ -28,6 +28,9 @@ class ProviderResult:
     limitations: str
     terms_reference: str
     businesses: list[dict[str, Any]] = field(default_factory=list)
+    # Se rellenan solo cuando una fuente en vivo falla y se recurre al modo demo.
+    fallback_used: bool = False
+    fallback_reason: str | None = None
 
 
 class BusinessDataProvider(abc.ABC):
@@ -170,3 +173,28 @@ def get_places_provider() -> BusinessDataProvider:
     if settings.PLACES_MODE == "live":
         return GooglePlacesProvider(api_key=settings.GOOGLE_PLACES_API_KEY)  # type: ignore[arg-type]
     return MockPlacesProvider()
+
+
+def search_with_fallback(city: str, niche: str, region: str | None, radius_km: float,
+                          max_results: int) -> ProviderResult:
+    """
+    Intenta la búsqueda con el proveedor configurado (real si hay API key).
+    Si el proveedor real falla (clave inválida, cuota agotada, red caída),
+    recurre automáticamente al modo demo para que la búsqueda no rompa la
+    experiencia del usuario, pero SIEMPRE marca el resultado como fallback
+    (nunca se presenta un dato de demostración como si fuera real).
+    """
+    provider = get_places_provider()
+    try:
+        return provider.search(city, niche, region, radius_km, max_results)
+    except RuntimeError as exc:
+        if provider.name == MockPlacesProvider.name:
+            raise  # el propio modo demo no debería fallar; no hay a qué recurrir
+        fallback_result = MockPlacesProvider().search(city, niche, region, radius_km, max_results)
+        fallback_result.fallback_used = True
+        fallback_result.fallback_reason = str(exc)
+        fallback_result.limitations = (
+            "Google Places no respondió correctamente, así que se muestran datos de "
+            "DEMOSTRACIÓN como respaldo. " + fallback_result.limitations
+        )
+        return fallback_result
