@@ -4,7 +4,9 @@ sin negocios reales — todo generado localmente).
 """
 import os
 
-os.environ["DATABASE_URL"] = "sqlite:///./test_prospectapp.db"
+# Si ya hay un DATABASE_URL definido externamente (p.ej. para probar contra
+# Postgres real en CI), se respeta. Si no, se usa SQLite local por defecto.
+os.environ.setdefault("DATABASE_URL", "sqlite:///./test_prospectapp.db")
 
 from fastapi.testclient import TestClient  # noqa: E402
 from app.main import app  # noqa: E402
