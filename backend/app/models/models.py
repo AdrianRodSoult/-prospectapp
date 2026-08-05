@@ -120,17 +120,11 @@ class Search(Base):
 class Business(Base):
     __tablename__ = "businesses"
     __table_args__ = (
-        # Antes el place_id era único globalmente: dos clientes distintos que
-        # buscaran el mismo negocio real acababan compartiendo la misma fila
-        # (notas, etapa CRM, etc. se mezclaban). Ahora cada cliente (owner_user_id)
-        # tiene su propia copia del negocio, aunque el place_id real coincida.
-        UniqueConstraint("place_id", "owner_user_id", name="uq_business_place_id_per_owner"),
+        UniqueConstraint("place_id", name="uq_business_place_id"),
         Index("ix_business_domain", "website_domain"),
-        Index("ix_business_owner", "owner_user_id"),
     )
     id = Column(String, primary_key=True, default=gen_uuid)
     search_id = Column(String, ForeignKey("searches.id"), nullable=True)
-    owner_user_id = Column(String, ForeignKey("users.id"), nullable=False)
 
     name = Column(String, nullable=False)
     category = Column(String, nullable=True)

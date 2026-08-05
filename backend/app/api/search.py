@@ -70,19 +70,13 @@ def run_search(payload: SearchCreate, response: Response, db: Session = Depends(
     created: list[Business] = []
 
     for item in result.businesses:
-        # Deduplicación por place_id, PERO solo dentro de los negocios del mismo
-        # usuario/cliente. Así dos clientes distintos nunca comparten fila,
-        # aunque busquen el mismo negocio real.
-        existing = db.query(Business).filter(
-            Business.place_id == item.get("place_id"),
-            Business.owner_user_id == current_user.id,
-        ).first()
+        # Deduplicación por place_id
+        existing = db.query(Business).filter(Business.place_id == item.get("place_id")).first()
         if existing:
             biz = existing
         else:
             biz = Business(
                 search_id=search.id,
-                owner_user_id=current_user.id,
                 name=item.get("name"),
                 category=item.get("category") or payload.niche,
                 address=item.get("address"),
@@ -249,7 +243,7 @@ def _estimate_fit(profile: ProspectingProfile, biz: Business) -> int:
 def list_businesses(search_id: str | None = None, min_score: int | None = None,
                      stage: str | None = None, sort_by: str = "score",
                      db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    q = db.query(Business).filter(Business.owner_user_id == current_user.id)
+    q = db.query(Business)
     if search_id:
         q = q.filter(Business.search_id == search_id)
     if stage:
@@ -269,9 +263,7 @@ def list_businesses(search_id: str | None = None, min_score: int | None = None,
 @router.get("/businesses/{business_id}")
 def get_business_detail(business_id: str, db: Session = Depends(get_db),
                          current_user: User = Depends(get_current_user)):
-    biz = db.query(Business).filter(
-        Business.id == business_id, Business.owner_user_id == current_user.id
-    ).first()
+    biz = db.query(Business).filter(Business.id == business_id).first()
     if not biz:
         raise HTTPException(404, "Negocio no encontrado")
     return {
@@ -303,9 +295,7 @@ def get_business_detail(business_id: str, db: Session = Depends(get_db),
 @router.patch("/businesses/{business_id}/stage")
 def update_stage(business_id: str, payload: StageUpdate, db: Session = Depends(get_db),
                   current_user: User = Depends(get_current_user)):
-    biz = db.query(Business).filter(
-        Business.id == business_id, Business.owner_user_id == current_user.id
-    ).first()
+    biz = db.query(Business).filter(Business.id == business_id).first()
     if not biz:
         raise HTTPException(404, "Negocio no encontrado")
     biz.crm_stage = payload.stage
@@ -317,12 +307,8 @@ def update_stage(business_id: str, payload: StageUpdate, db: Session = Depends(g
 @router.post("/messages/generate")
 def generate_message(payload: MessageGenerateRequest, db: Session = Depends(get_db),
                       current_user: User = Depends(get_current_user)):
-    biz = db.query(Business).filter(
-        Business.id == payload.business_id, Business.owner_user_id == current_user.id
-    ).first()
-    profile = db.query(ProspectingProfile).filter(
-        ProspectingProfile.id == payload.profile_id, ProspectingProfile.user_id == current_user.id
-    ).first()
+    biz = db.query(Business).filter(Business.id == payload.business_id).first()
+    profile = db.query(ProspectingProfile).filter(ProspectingProfile.id == payload.profile_id).first()
     if not biz or not profile:
         raise HTTPException(404, "Negocio o perfil no encontrado")
 
@@ -367,7 +353,7 @@ def generate_message(payload: MessageGenerateRequest, db: Session = Depends(get_
 
 @router.get("/dashboard")
 def dashboard(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    all_biz = db.query(Business).filter(Business.owner_user_id == current_user.id).all()
+    all_biz = db.query(Business).all()
     total = len(all_biz)
     by_stage: dict[str, int] = {}
     for b in all_biz:
