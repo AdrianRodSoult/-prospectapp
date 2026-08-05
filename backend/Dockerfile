@@ -11,4 +11,7 @@ COPY . .
 
 EXPOSE 8000
 
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+# Aplica las migraciones pendientes antes de arrancar el servidor. Así,
+# cada despliegue en Render dejará el esquema de Postgres al día
+# automáticamente (evita tener que ejecutarlo a mano cada vez).
+CMD ["sh", "-c", "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000"]
