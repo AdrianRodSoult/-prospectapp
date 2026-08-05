@@ -7,25 +7,11 @@ import os
 from functools import lru_cache
 
 
-def _normalize_database_url(raw_url: str) -> str:
-    """
-    Render (y Heroku) entregan la URL de Postgres con el esquema legado
-    'postgres://'. SQLAlchemy 2.x solo acepta 'postgresql://'. Sin esta
-    normalización, la app fallaría al arrancar en producción con un
-    DATABASE_URL de Postgres real, aunque funcionara perfecto en local.
-    """
-    if raw_url.startswith("postgres://"):
-        return raw_url.replace("postgres://", "postgresql://", 1)
-    return raw_url
-
-
 class Settings:
     # --- General ---
     APP_ENV: str = os.getenv("APP_ENV", "development")
     SECRET_KEY: str = os.getenv("SECRET_KEY", "dev-insecure-secret-change-me")
-    DATABASE_URL: str = _normalize_database_url(
-        os.getenv("DATABASE_URL", "sqlite:///./prospectapp.db")
-    )
+    DATABASE_URL: str = os.getenv("DATABASE_URL", "sqlite:///./prospectapp.db")
 
     # --- Google Places ---
     GOOGLE_PLACES_API_KEY: str | None = os.getenv("GOOGLE_PLACES_API_KEY")
