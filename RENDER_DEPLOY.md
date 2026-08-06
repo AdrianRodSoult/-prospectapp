@@ -26,76 +26,74 @@
 4. Todo esto se probó de verdad en ambos sentidos (bloqueo con SQLite,
    éxito con Postgres) contra un Postgres 16 real, no simulado.
 
-## Paso a paso — hazlo EN ESTE ORDEN
+## Paso a paso — hazlo EN ESTE ORDEN (orden conservador: conexión antes que merge)
+
+Este orden es el más seguro posible: primero se comprueba la conexión a
+Postgres con el código actual (sin tocar nada del código nuevo), y solo
+cuando esa conexión está confirmada se mergea el procedimiento con las
+migraciones.
 
 ### 1. Crear la base de datos Postgres en Render
 
 1. Panel de Render → **New** → **PostgreSQL**.
 2. Nombre sugerido: `prospectapp-db`. Región: la misma que tu backend.
-3. Una vez creada, copia el valor **"Internal Database URL"** (no el
-   "External"): formato `postgres://usuario:password@host-interno/nombre_bd`.
+3. Copia el valor **"Internal Database URL"**.
 
-### 2. Configurar el backend — TODAVÍA NO despliegues
+### 2. Configurar DATABASE_URL — TODAVÍA sin mergear nada
 
-En el servicio del backend → **Environment**, añade:
+En el servicio del backend → **Environment**, pon `DATABASE_URL` con esa
+URL. Esto dispara un redeploy **con el código actual** (el que ya está en
+`main`, sin Alembic). Ese código sigue usando `create_all()`, así que
+creará el esquema en Postgres automáticamente — es normal y esperado,
+es justo la comprobación de conexión que quieres hacer.
 
-| Variable | Valor |
-|---|---|
-| `DATABASE_URL` | La *Internal Database URL* del paso 1 |
-| `SECRET_KEY` | Una clave larga y aleatoria (si no la tienes ya) |
+### 3. Verificar la conexión
 
-**No despliegues todavía.** Ve al paso 3 primero.
+- En los logs del backend, confirma que arrancó sin errores.
+- Entra a la app y confirma que tu login sigue funcionando (ahora contra
+  Postgres, no contra el SQLite anterior).
+- Opcional: haz una búsqueda para generar algo de actividad de prueba.
 
-### 3. Verificar el motor ANTES de mergear (punto #3 de tu petición)
+**No mergees nada todavía. Este es el punto de confirmación conjunta.**
 
-Antes de aprobar el merge de esta rama a `main`, con la rama actual ya
-desplegada (el código del gate no requiere el merge para funcionar, ya
-que es solo lectura de `DATABASE_URL`), puedes comprobar en los logs de
-Render qué motor detecta la app. Búscalo en el log del backend:
+### 4. Mergear el procedimiento seguro
 
-```
-[prospectapp] Motor de base de datos detectado: 'postgresql' (entorno: PRODUCCIÓN)
-```
-
-Si en vez de `postgresql` ves `sqlite`, **no continúes**: revisa que la
-variable `DATABASE_URL` del paso 2 se guardó correctamente en Render.
-
-### 4. Mergear y desplegar
-
-Con `DATABASE_URL` ya confirmado como Postgres en logs, aprueba el merge.
-El despliegue automático ejecutará, en este orden exacto (garantizado por
-el `Dockerfile`):
+Cuando confirmes que el paso 3 funciona, publico la rama
+`feature/safe-postgres-migration-procedure` y te paso el enlace del PR.
+Al mergearlo, el nuevo `Dockerfile` ejecuta, en este orden exacto:
 
 ```
-python -m app.core.db_engine_guard   # (punto #1: bloquea si sigue en SQLite)
-  && alembic upgrade head             # (puntos #4 y #5: baseline primero, multi-tenant después — en ese orden fijo por la cadena de revisiones de Alembic)
-  && uvicorn app.main:app ...         # solo arranca si todo lo anterior funcionó
+python -m app.core.db_engine_guard      # confirma que sigue siendo Postgres
+  && python -m app.core.alembic_bootstrap  # detecta el esquema creado en el paso 2
+                                             # y lo marca como "baseline aplicado"
+                                             # SIN recrear ni una tabla
+  && alembic upgrade head                  # aplica SOLO la migración multi-tenant
+  && uvicorn app.main:app ...
 ```
 
-### 5. Qué pasa con tus datos (punto #7 de tu petición)
+Esto es importante: como en el paso 2 el código antiguo ya creó las
+tablas, la migración baseline **no se vuelve a ejecutar** — el bootstrap
+la marca como aplicada y Alembic solo añade lo nuevo (`owner_user_id` y
+el aislamiento). Nada se borra ni se recrea. Esto está probado
+exactamente contra este escenario (esquema viejo + usuario real ya
+insertado), no es teórico.
 
-**Nada se modifica ni se elimina hasta que el gate confirme Postgres.**
-Si el gate bloquea (sigues en SQLite), la cadena `&&` se corta ahí: no se
-ejecuta ninguna migración, ni el baseline, ni la multi-tenant, ni se toca
-ni una fila.
+### 5. Qué pasa con tus datos
 
-Solo cuando `DATABASE_URL` apunta de verdad a Postgres:
-- El usuario real que ya creaste **no se toca ni se borra**.
-- Si tuvieras algún negocio de prueba guardado con búsqueda asociada, la
-  migración le asigna automáticamente el propietario correcto (probado
-  con datos que simulan exactamente tu caso).
-- Si hubiera negocios sin búsqueda asociada (huérfanos, no debería haber
-  ninguno), se eliminarían junto con sus dependencias — ya confirmaste que
-  no hay datos comerciales importantes que conservar.
+- Tu usuario real, creado en el paso 2 contra Postgres (o migrado desde
+  SQLite si ya existía antes), **no se toca**.
+- Si guardaste algún negocio de prueba con búsqueda asociada, se le
+  asigna automáticamente como propietario.
+- Cualquier negocio sin búsqueda asociada (no debería haber ninguno) se
+  eliminaría — ya confirmaste que no hay datos comerciales que conservar.
 
-### 6. Verificación después de desplegar
+### 6. Verificación final
 
-1. Revisa los logs de Render: debe aparecer `'postgresql'` y las dos líneas
-   `Running upgrade ... baseline...` y `Running upgrade ... multi-tenant...`.
-2. Entra a la app, confirma que tu login sigue funcionando.
-3. Haz una búsqueda nueva y compruébala en `/results`.
-4. (Opcional) Registra un segundo usuario de prueba, busca el mismo nicho/
-   ciudad, y confirma que no ve los negocios del primero.
+1. Logs: debe verse `'postgresql'`, el mensaje de bootstrap, y
+   `Running upgrade cc333fa260ae -> ...multi-tenant`.
+2. Login sigue funcionando.
+3. Búsqueda nueva funciona.
+4. (Opcional) Segundo usuario de prueba no ve los negocios del primero.
 
 ## Plan de rollback (punto #6 de tu petición)
 
@@ -125,5 +123,5 @@ que confirmemos juntos, paso a paso:
 
 - [ ] Postgres creado en Render (paso 1)
 - [ ] `DATABASE_URL` configurado en el backend (paso 2)
-- [ ] Log confirmado mostrando `'postgresql'` (paso 3)
-- [ ] Tú das el visto bueno para que publique la rama y abramos el PR
+- [ ] Login y app funcionando contra Postgres, con el código actual (paso 3)
+- [ ] Tú das el visto bueno para que publique la rama y abramos el PR (paso 4)
