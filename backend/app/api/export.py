@@ -18,7 +18,7 @@ COLUMNS = ["name", "category", "address", "city", "phone_intl", "website_url",
 @router.get("/csv")
 def export_csv(search_id: str | None = None, db: Session = Depends(get_db),
                current_user: User = Depends(get_current_user)):
-    q = db.query(Business)
+    q = db.query(Business).filter(Business.owner_user_id == current_user.id)
     if search_id:
         q = q.filter(Business.search_id == search_id)
     businesses = q.all()
