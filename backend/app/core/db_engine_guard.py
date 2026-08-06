@@ -11,7 +11,7 @@ algo no cuadra, se detiene con un mensaje claro en vez de fallar a medias.
 """
 import sys
 
-from app.core.config import get_settings
+from app.core.config import get_settings, is_production_environment
 
 
 def get_database_engine_name(database_url: str) -> str:
@@ -20,14 +20,9 @@ def get_database_engine_name(database_url: str) -> str:
 
 
 def _is_production_like() -> bool:
-    """Mismo criterio que config._is_production_environment(): APP_ENV=production
-    o la variable RENDER=true que Render inyecta automáticamente en sus servicios."""
-    import os
-    if os.getenv("APP_ENV", "development") == "production":
-        return True
-    if os.getenv("RENDER", "").lower() == "true":
-        return True
-    return False
+    """Delegado a app.core.config.is_production_environment(): fuente única
+    de verdad, compartida también con la validación de SECRET_KEY."""
+    return is_production_environment()
 
 
 def log_database_engine() -> str:
