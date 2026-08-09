@@ -10,6 +10,13 @@ os.environ.setdefault("DATABASE_URL", "sqlite:///./test_prospectapp.db")
 
 from fastapi.testclient import TestClient  # noqa: E402
 from app.main import app  # noqa: E402
+from app.core.rate_limit import limiter  # noqa: E402
+
+# Estos tests ejercitan el flujo funcional (muchos registros/logins desde el
+# mismo cliente de pruebas, que slowapi ve como una única IP). El rate
+# limiting en sí se prueba de forma aislada y explícita en
+# test_rate_limiting.py; aquí se desactiva para no mezclar ambas cosas.
+limiter.enabled = False
 
 client = TestClient(app)
 
