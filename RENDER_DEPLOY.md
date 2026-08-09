@@ -125,3 +125,19 @@ que confirmemos juntos, paso a paso:
 - [ ] `DATABASE_URL` configurado en el backend (paso 2)
 - [ ] Login y app funcionando contra Postgres, con el código actual (paso 3)
 - [ ] Tú das el visto bueno para que publique la rama y abramos el PR (paso 4)
+
+---
+
+## Capa adicional: SECRET_KEY fuerte obligatorio en producción
+
+Desde la rama `feature/enforce-secret-key-production`, el arranque también
+falla (mismo mecanismo que el gate de Postgres) si `SECRET_KEY` no está
+configurado o es el valor por defecto del código, en cualquier entorno de
+producción. Confirmado antes de preparar esta rama que ya tienes un
+`SECRET_KEY` fuerte puesto en Render, así que este cambio no debería
+requerir ninguna acción adicional tuya — pero si alguna vez rotas o quitas
+esa variable, ten en cuenta que el próximo deploy no arrancará hasta que
+la vuelvas a poner. Para generar una nueva si hiciera falta:
+```
+python -c "import secrets; print(secrets.token_urlsafe(48))"
+```

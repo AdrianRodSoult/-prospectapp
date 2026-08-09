@@ -6,6 +6,9 @@ nunca inventa datos "reales" — los marca explícitamente como demo.
 import os
 from functools import lru_cache
 
+INSECURE_DEFAULT_SECRET_KEY = "dev-insecure-secret-change-me"
+MIN_SECRET_KEY_LENGTH = 32
+
 
 def _normalize_database_url(raw_url: str) -> str:
     """
@@ -19,10 +22,53 @@ def _normalize_database_url(raw_url: str) -> str:
     return raw_url
 
 
+def is_production_environment() -> bool:
+    """
+    Fuente única de verdad para "¿estamos en producción?", usada tanto
+    para validar SECRET_KEY como para el guardia de motor de base de
+    datos (app.core.db_engine_guard). Se considera producción si
+    APP_ENV=production, o si detectamos que corremos en Render (que
+    inyecta RENDER=true automáticamente en todos sus servicios) — esto
+    último es un salvavidas por si algún día se despliega sin haber
+    configurado APP_ENV a mano.
+    """
+    if os.getenv("APP_ENV", "development") == "production":
+        return True
+    if os.getenv("RENDER", "").lower() == "true":
+        return True
+    return False
+
+
+def validate_secret_key(secret_key: str, is_production: bool) -> None:
+    """
+    En producción, un SECRET_KEY débil o por defecto permite a cualquiera
+    falsificar tokens JWT de sesión de OTROS usuarios (suplantación total
+    de identidad). Por eso el arranque debe fallar de forma ruidosa en
+    vez de arrancar "funcionando" con una clave insegura.
+    En desarrollo/tests se permite el valor por defecto, para no romper
+    el flujo de trabajo local habitual.
+    """
+    if not is_production:
+        return
+    if secret_key == INSECURE_DEFAULT_SECRET_KEY:
+        raise RuntimeError(
+            "SECRET_KEY no está configurado (se está usando el valor por defecto "
+            "inseguro) en un entorno de producción. Configura una variable de "
+            "entorno SECRET_KEY con una clave larga y aleatoria antes de arrancar. "
+            "Puedes generar una con: python -c \"import secrets; print(secrets.token_urlsafe(48))\""
+        )
+    if len(secret_key) < MIN_SECRET_KEY_LENGTH:
+        raise RuntimeError(
+            f"SECRET_KEY es demasiado corto para producción (mínimo "
+            f"{MIN_SECRET_KEY_LENGTH} caracteres). Genera uno nuevo con: "
+            "python -c \"import secrets; print(secrets.token_urlsafe(48))\""
+        )
+
+
 class Settings:
     # --- General ---
     APP_ENV: str = os.getenv("APP_ENV", "development")
-    SECRET_KEY: str = os.getenv("SECRET_KEY", "dev-insecure-secret-change-me")
+    SECRET_KEY: str = os.getenv("SECRET_KEY", INSECURE_DEFAULT_SECRET_KEY)
     DATABASE_URL: str = _normalize_database_url(
         os.getenv("DATABASE_URL", "sqlite:///./prospectapp.db")
     )
@@ -75,4 +121,6 @@ class Settings:
 
 @lru_cache
 def get_settings() -> Settings:
-    return Settings()
+    settings = Settings()
+    validate_secret_key(settings.SECRET_KEY, is_production_environment())
+    return settings
