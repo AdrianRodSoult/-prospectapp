@@ -65,6 +65,34 @@ def validate_secret_key(secret_key: str, is_production: bool) -> None:
         )
 
 
+# Clave de desarrollo fija (NUNCA usada en producción, ver validación abajo),
+# solo para que `docker compose up` funcione sin configurar nada a mano.
+# Generada una única vez con Fernet.generate_key() — es una clave Fernet
+# válida real, simplemente no es secreta (está en el código fuente a propósito).
+_DEV_FERNET_KEY = "4GywEJN3Bu_VesinebBN0FajY7va37P5X0qWECmZePs="
+
+
+def validate_credentials_encryption_key(key: str | None, is_production: bool) -> str:
+    """
+    Las API keys que cada cliente introduce (Google Places, Claude, GPT)
+    se cifran en la base de datos con esta clave antes de guardarlas.
+    En producción es obligatoria: sin ella, cualquiera con acceso de
+    lectura a la base de datos podría leer las claves de pago de los
+    clientes en texto plano. En desarrollo, si no se define, se usa una
+    clave fija de conveniencia (documentada, nunca secreta de verdad).
+    """
+    if not key:
+        if is_production:
+            raise RuntimeError(
+                "CREDENTIALS_ENCRYPTION_KEY no está configurado en un entorno de "
+                "producción. Es obligatoria para cifrar las API keys que los "
+                "clientes guardan (Google Places, Claude, GPT). Genera una con: "
+                "python -c \"from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())\""
+            )
+        return _DEV_FERNET_KEY
+    return key
+
+
 class Settings:
     # --- General ---
     APP_ENV: str = os.getenv("APP_ENV", "development")
@@ -118,9 +146,19 @@ class Settings:
     # --- CORS ---
     CORS_ORIGINS: list[str] = os.getenv("CORS_ORIGINS", "http://localhost:3000").split(",")
 
+    # --- Cifrado de credenciales de cliente (API keys propias por usuario) ---
+    # Clave separada de SECRET_KEY a propósito: si SECRET_KEY se filtrara,
+    # no queremos que eso también descifre las API keys guardadas de los
+    # clientes. En desarrollo se genera una clave fija de conveniencia; en
+    # producción es obligatoria (ver validate_credentials_encryption_key).
+    CREDENTIALS_ENCRYPTION_KEY: str | None = os.getenv("CREDENTIALS_ENCRYPTION_KEY")
+
 
 @lru_cache
 def get_settings() -> Settings:
     settings = Settings()
     validate_secret_key(settings.SECRET_KEY, is_production_environment())
+    settings.CREDENTIALS_ENCRYPTION_KEY = validate_credentials_encryption_key(
+        settings.CREDENTIALS_ENCRYPTION_KEY, is_production_environment()
+    )
     return settings

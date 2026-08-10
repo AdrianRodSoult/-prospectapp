@@ -49,12 +49,20 @@ export default function Dashboard() {
           </div>
         )}
 
-        <button
-          onClick={() => router.push("/search")}
-          className="mt-6 w-full md:w-auto rounded-xl bg-moss text-white px-5 py-3 font-medium"
-        >
-          + Nueva búsqueda
-        </button>
+        <div className="mt-6 flex flex-wrap gap-3">
+          <button
+            onClick={() => router.push("/search")}
+            className="w-full md:w-auto rounded-xl bg-moss text-white px-5 py-3 font-medium"
+          >
+            + Nueva búsqueda
+          </button>
+          <button
+            onClick={() => router.push("/settings/api-keys")}
+            className="w-full md:w-auto rounded-xl border border-line bg-white px-5 py-3 font-medium text-ink/70"
+          >
+            ⚙ Mis claves de API
+          </button>
+        </div>
       </div>
     </div>
   );

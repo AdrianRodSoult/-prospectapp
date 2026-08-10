@@ -16,6 +16,7 @@ from app.providers.website_auditor import audit_website, audit_website_mock
 from app.providers.ai_provider import get_ai_provider
 from app.services.opportunity_engine import detect_opportunities
 from app.services.scoring_engine import compute_score
+from app.services.user_credentials import get_user_credentials
 from app.schemas.schemas import SearchCreate, BusinessOut, MessageGenerateRequest, StageUpdate
 
 router = APIRouter(prefix="/api", tags=["search"])
@@ -40,7 +41,9 @@ def run_search(payload: SearchCreate, response: Response, db: Session = Depends(
         raise HTTPException(404, "Perfil no encontrado")
 
     max_results = min(payload.max_results, settings.MAX_RESULTS_PER_SEARCH)
-    result = search_with_fallback(payload.city, payload.niche, payload.region, payload.radius_km, max_results)
+    user_creds = get_user_credentials(db, current_user.id)
+    result = search_with_fallback(payload.city, payload.niche, payload.region, payload.radius_km,
+                                   max_results, user_api_key=user_creds.google_places_api_key)
 
     # Modo real de datos de esta búsqueda concreta, para que el frontend
     # pueda avisar con transparencia si se usó demo, real, o real-con-fallback.
@@ -326,7 +329,9 @@ def generate_message(payload: MessageGenerateRequest, db: Session = Depends(get_
     if not biz or not profile:
         raise HTTPException(404, "Negocio o perfil no encontrado")
 
-    ai = get_ai_provider()
+    user_creds = get_user_credentials(db, current_user.id)
+    ai = get_ai_provider(user_anthropic_key=user_creds.anthropic_api_key,
+                          user_openai_key=user_creds.openai_api_key)
     business_context = {
         "name": biz.name,
         "category": biz.category,

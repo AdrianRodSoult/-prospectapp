@@ -34,6 +34,13 @@ export default function NavBar() {
             );
           })}
         </div>
+        <Link
+          href="/settings/api-keys"
+          className={`hidden md:flex items-center gap-2 text-sm px-2 py-1 rounded-lg
+            ${router.pathname.startsWith("/settings") ? "text-moss font-semibold" : "text-ink/60"}`}
+        >
+          <span>⚙</span> Ajustes
+        </Link>
       </div>
     </nav>
   );

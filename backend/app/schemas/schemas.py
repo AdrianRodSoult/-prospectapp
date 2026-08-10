@@ -84,3 +84,18 @@ class MessageGenerateRequest(BaseModel):
 
 class StageUpdate(BaseModel):
     stage: str
+
+
+class ApiCredentialsUpdate(BaseModel):
+    """Todos los campos opcionales: solo se actualizan los que se envíen.
+    Enviar un campo como cadena vacía "" borra esa key concreta."""
+    google_places_api_key: str | None = None
+    anthropic_api_key: str | None = None
+    openai_api_key: str | None = None
+
+
+class ApiCredentialsStatus(BaseModel):
+    """Nunca se devuelve la clave real, solo si está configurada o no."""
+    google_places_configured: bool
+    anthropic_configured: bool
+    openai_configured: bool

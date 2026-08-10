@@ -368,3 +368,22 @@ class ProviderUsage(Base):
     estimated_cost_usd = Column(Float, default=0.0)
     units = Column(Integer, default=1)
     created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class UserApiCredentials(Base):
+    """
+    API keys que el propio cliente introduce desde la app (no las globales
+    del servidor). Todas cifradas; nunca se guarda ni se devuelve texto
+    plano al frontend. Un cliente sin fila aquí (o sin valor en un campo
+    concreto) simplemente sigue en modo demo para esa integración.
+    """
+    __tablename__ = "user_api_credentials"
+    id = Column(String, primary_key=True, default=gen_uuid)
+    user_id = Column(String, ForeignKey("users.id"), nullable=False, unique=True)
+
+    google_places_api_key_encrypted = Column(Text, nullable=True)
+    anthropic_api_key_encrypted = Column(Text, nullable=True)
+    openai_api_key_encrypted = Column(Text, nullable=True)
+
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
