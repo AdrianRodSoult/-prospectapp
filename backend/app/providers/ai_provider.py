@@ -204,10 +204,24 @@ def _safe_json_parse(raw: str) -> dict:
         return {"error": "No se pudo interpretar la respuesta de la IA", "raw": raw[:500]}
 
 
-def get_ai_provider() -> AIProvider:
+def get_ai_provider(user_anthropic_key: str | None = None, user_openai_key: str | None = None) -> AIProvider:
+    """
+    Prioridad: keys propias del cliente sobre las del servidor. Si el
+    cliente configuró una key de Anthropic propia, se usa esa aunque
+    AI_PROVIDER del servidor esté puesto en 'openai' (y viceversa) — se
+    respeta la preferencia de proveedor del cliente sobre la del servidor.
+    """
+    effective_anthropic = user_anthropic_key or settings.ANTHROPIC_API_KEY
+    effective_openai = user_openai_key or settings.OPENAI_API_KEY
+
+    if user_anthropic_key:
+        return AnthropicAIProvider(user_anthropic_key, settings.AI_MODEL, settings.AI_MAX_TOKENS)
+    if user_openai_key:
+        return OpenAIProvider(user_openai_key, settings.AI_MODEL, settings.AI_MAX_TOKENS)
+
     mode = settings.AI_MODE
-    if mode == "anthropic":
-        return AnthropicAIProvider(settings.ANTHROPIC_API_KEY, settings.AI_MODEL, settings.AI_MAX_TOKENS)  # type: ignore
-    if mode == "openai":
-        return OpenAIProvider(settings.OPENAI_API_KEY, settings.AI_MODEL, settings.AI_MAX_TOKENS)  # type: ignore
+    if mode == "anthropic" and effective_anthropic:
+        return AnthropicAIProvider(effective_anthropic, settings.AI_MODEL, settings.AI_MAX_TOKENS)
+    if mode == "openai" and effective_openai:
+        return OpenAIProvider(effective_openai, settings.AI_MODEL, settings.AI_MAX_TOKENS)
     return MockAIProvider()

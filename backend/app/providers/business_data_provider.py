@@ -169,22 +169,30 @@ class MockPlacesProvider(BusinessDataProvider):
         )
 
 
-def get_places_provider() -> BusinessDataProvider:
-    if settings.PLACES_MODE == "live":
-        return GooglePlacesProvider(api_key=settings.GOOGLE_PLACES_API_KEY)  # type: ignore[arg-type]
+def get_places_provider(user_api_key: str | None = None) -> BusinessDataProvider:
+    """
+    Prioridad: la API key propia del cliente (si la configuró) por encima
+    de la del servidor. Así cada cliente usa su propia cuota y factura de
+    Google, y un cliente sin key propia sigue funcionando en modo demo
+    (o con la key global del servidor, si existiera, como antes).
+    """
+    effective_key = user_api_key or settings.GOOGLE_PLACES_API_KEY
+    if effective_key:
+        return GooglePlacesProvider(api_key=effective_key)
     return MockPlacesProvider()
 
 
 def search_with_fallback(city: str, niche: str, region: str | None, radius_km: float,
-                          max_results: int) -> ProviderResult:
+                          max_results: int, user_api_key: str | None = None) -> ProviderResult:
     """
-    Intenta la búsqueda con el proveedor configurado (real si hay API key).
-    Si el proveedor real falla (clave inválida, cuota agotada, red caída),
+    Intenta la búsqueda con el proveedor configurado (real si hay API key,
+    priorizando la propia del cliente sobre la del servidor). Si el
+    proveedor real falla (clave inválida, cuota agotada, red caída),
     recurre automáticamente al modo demo para que la búsqueda no rompa la
     experiencia del usuario, pero SIEMPRE marca el resultado como fallback
     (nunca se presenta un dato de demostración como si fuera real).
     """
-    provider = get_places_provider()
+    provider = get_places_provider(user_api_key)
     try:
         return provider.search(city, niche, region, radius_km, max_results)
     except RuntimeError as exc:
