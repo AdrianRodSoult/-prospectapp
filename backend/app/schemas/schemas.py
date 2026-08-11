@@ -99,3 +99,11 @@ class ApiCredentialsStatus(BaseModel):
     google_places_configured: bool
     anthropic_configured: bool
     openai_configured: bool
+
+
+class PaginatedBusinesses(BaseModel):
+    items: list[BusinessOut]
+    total: int
+    page: int
+    page_size: int
+    total_pages: int

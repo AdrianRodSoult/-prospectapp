@@ -19,7 +19,11 @@ export default function CRM() {
   const [businesses, setBusinesses] = useState<any[]>([]);
 
   useEffect(() => {
-    api.get("/api/businesses").then((r) => setBusinesses(r.data));
+    // El tablero Kanban necesita ver todas las etapas a la vez, así que se
+    // pide una página grande en vez de paginar por columna (limitación
+    // conocida: con más de 100 leads, el tablero no los mostraría todos
+    // todavía — pendiente de paginación real por columna más adelante).
+    api.get("/api/businesses?page_size=100").then((r) => setBusinesses(r.data.items));
   }, []);
 
   return (

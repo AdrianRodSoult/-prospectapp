@@ -10,8 +10,13 @@ export default function Results() {
   const [loading, setLoading] = useState(true);
   const [dataSource, setDataSource] = useState<string | null>(null);
   const [dataWarning, setDataWarning] = useState<string | null>(null);
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [total, setTotal] = useState(0);
+  const PAGE_SIZE = 20;
 
-  useEffect(() => { load(); }, [sortBy]);
+  useEffect(() => { setPage(1); }, [sortBy]);
+  useEffect(() => { load(); }, [sortBy, page]);
 
   useEffect(() => {
     setDataSource(window.sessionStorage.getItem("last_search_data_source"));
@@ -21,7 +26,13 @@ export default function Results() {
 
   function load() {
     setLoading(true);
-    api.get(`/api/businesses?sort_by=${sortBy}`).then((r) => setBusinesses(r.data)).finally(() => setLoading(false));
+    api.get(`/api/businesses?sort_by=${sortBy}&page=${page}&page_size=${PAGE_SIZE}`)
+      .then((r) => {
+        setBusinesses(r.data.items);
+        setTotalPages(r.data.total_pages);
+        setTotal(r.data.total);
+      })
+      .finally(() => setLoading(false));
   }
 
   return (
@@ -89,6 +100,28 @@ export default function Results() {
           Nota: el mapa interactivo requiere una clave de Google Maps configurada en el servidor
           (no se activa por defecto para mantener la app gratuita).
         </p>
+
+        {totalPages > 1 && (
+          <div className="flex items-center justify-center gap-3 mt-6">
+            <button
+              onClick={() => setPage((p) => Math.max(1, p - 1))}
+              disabled={page <= 1}
+              className="rounded-lg border border-line bg-white px-3 py-2 text-sm disabled:opacity-30"
+            >
+              ← Anterior
+            </button>
+            <span className="text-sm text-ink/60">
+              Página {page} de {totalPages} · {total} negocios
+            </span>
+            <button
+              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+              disabled={page >= totalPages}
+              className="rounded-lg border border-line bg-white px-3 py-2 text-sm disabled:opacity-30"
+            >
+              Siguiente →
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );

@@ -130,7 +130,7 @@ def test_data_isolation_between_customers():
     assert resp.status_code == 404
 
     list_b = client.get("/api/businesses", headers=headers_b).json()
-    assert target_id not in {b["id"] for b in list_b}
+    assert target_id not in {b["id"] for b in list_b["items"]}
 
     export_b = client.get("/api/export/csv", headers=headers_b)
     assert target_id not in export_b.text
