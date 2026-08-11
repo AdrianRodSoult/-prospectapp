@@ -1,6 +1,7 @@
 from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Response
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
@@ -17,7 +18,9 @@ from app.providers.ai_provider import get_ai_provider
 from app.services.opportunity_engine import detect_opportunities
 from app.services.scoring_engine import compute_score
 from app.services.user_credentials import get_user_credentials
-from app.schemas.schemas import SearchCreate, BusinessOut, MessageGenerateRequest, StageUpdate
+from app.schemas.schemas import (
+    SearchCreate, BusinessOut, MessageGenerateRequest, StageUpdate, PaginatedBusinesses,
+)
 
 router = APIRouter(prefix="/api", tags=["search"])
 settings = get_settings()
@@ -248,25 +251,47 @@ def _estimate_fit(profile: ProspectingProfile, biz: Business) -> int:
     return min(fit, 20)
 
 
-@router.get("/businesses", response_model=list[BusinessOut])
+@router.get("/businesses", response_model=PaginatedBusinesses)
 def list_businesses(search_id: str | None = None, min_score: int | None = None,
                      stage: str | None = None, sort_by: str = "score",
+                     page: int = 1, page_size: int = 20,
                      db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    q = db.query(Business).filter(Business.owner_user_id == current_user.id)
+    """
+    Paginado a nivel de base de datos (LIMIT/OFFSET), no en memoria: antes
+    esto cargaba TODOS los negocios del cliente y ordenaba en Python, lo
+    que se vuelve lento con cientos o miles de leads.
+    """
+    page = max(page, 1)
+    page_size = max(1, min(page_size, 100))
+
+    # LEFT JOIN a LeadScore: un negocio sin score todavía cuenta como 0,
+    # igual que el comportamiento anterior en Python.
+    q = (
+        db.query(Business)
+        .outerjoin(LeadScore, LeadScore.business_id == Business.id)
+        .filter(Business.owner_user_id == current_user.id)
+    )
     if search_id:
         q = q.filter(Business.search_id == search_id)
     if stage:
         q = q.filter(Business.crm_stage == stage)
-    businesses = q.all()
     if min_score is not None:
-        businesses = [b for b in businesses if b.lead_score and b.lead_score.total_score >= min_score]
-    if sort_by == "score":
-        businesses.sort(key=lambda b: (b.lead_score.total_score if b.lead_score else 0), reverse=True)
-    elif sort_by == "reviews":
-        businesses.sort(key=lambda b: b.review_count or 0, reverse=True)
+        q = q.filter(func.coalesce(LeadScore.total_score, 0) >= min_score)
+
+    if sort_by == "reviews":
+        q = q.order_by(Business.review_count.desc().nullslast(), Business.id)
     elif sort_by == "rating":
-        businesses.sort(key=lambda b: b.rating or 0, reverse=True)
-    return businesses
+        q = q.order_by(Business.rating.desc().nullslast(), Business.id)
+    else:  # "score" por defecto
+        q = q.order_by(func.coalesce(LeadScore.total_score, 0).desc(), Business.id)
+
+    total = q.order_by(None).with_entities(func.count(Business.id)).scalar()
+    items = q.offset((page - 1) * page_size).limit(page_size).all()
+    total_pages = (total + page_size - 1) // page_size if total else 0
+
+    return PaginatedBusinesses(
+        items=items, total=total, page=page, page_size=page_size, total_pages=total_pages,
+    )
 
 
 @router.get("/businesses/{business_id}")
