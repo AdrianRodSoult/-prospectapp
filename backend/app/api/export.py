@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.core.security import get_current_user
 from app.models.models import Business, User, AuditLog
+from app.services.organizations import get_teammate_user_ids
 
 router = APIRouter(prefix="/api/export", tags=["export"])
 
@@ -18,7 +19,8 @@ COLUMNS = ["name", "category", "address", "city", "phone_intl", "website_url",
 @router.get("/csv")
 def export_csv(search_id: str | None = None, db: Session = Depends(get_db),
                current_user: User = Depends(get_current_user)):
-    q = db.query(Business).filter(Business.owner_user_id == current_user.id)
+    teammate_ids = get_teammate_user_ids(db, current_user.id)
+    q = db.query(Business).filter(Business.owner_user_id.in_(teammate_ids))
     if search_id:
         q = q.filter(Business.search_id == search_id)
     businesses = q.all()

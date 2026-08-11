@@ -387,3 +387,54 @@ class UserApiCredentials(Base):
 
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class OrganizationRole(str, enum.Enum):
+    owner = "owner"
+    admin = "admin"
+    member = "member"
+
+
+class Organization(Base):
+    """
+    Equipo/empresa cliente. Cada usuario pertenece siempre a al menos una
+    (su organización personal, creada automáticamente al registrarse).
+    Los negocios, perfiles y leads se comparten entre todos los miembros
+    de la misma organización — sin tocar el esquema de 'businesses': la
+    visibilidad compartida se resuelve a nivel de consulta (ver
+    app/services/organizations.py), no cambiando su propietario real.
+    """
+    __tablename__ = "organizations"
+    id = Column(String, primary_key=True, default=gen_uuid)
+    name = Column(String, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class Membership(Base):
+    __tablename__ = "memberships"
+    __table_args__ = (
+        UniqueConstraint("organization_id", "user_id", name="uq_membership_org_user"),
+    )
+    id = Column(String, primary_key=True, default=gen_uuid)
+    organization_id = Column(String, ForeignKey("organizations.id"), nullable=False)
+    user_id = Column(String, ForeignKey("users.id"), nullable=False)
+    role = Column(Enum(OrganizationRole), default=OrganizationRole.member, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class OrganizationInvitation(Base):
+    """
+    Invitación pendiente por email. Si el email ya tiene cuenta, la
+    aceptación es inmediata (ver app/api/organizations.py). Si no, se
+    resuelve automáticamente en el momento del registro (ver app/api/auth.py):
+    el nuevo usuario se une a la organización invitada en vez de crear
+    una organización personal nueva.
+    """
+    __tablename__ = "organization_invitations"
+    id = Column(String, primary_key=True, default=gen_uuid)
+    organization_id = Column(String, ForeignKey("organizations.id"), nullable=False)
+    email = Column(String, nullable=False, index=True)
+    role = Column(Enum(OrganizationRole), default=OrganizationRole.member, nullable=False)
+    invited_by_user_id = Column(String, ForeignKey("users.id"), nullable=True)
+    accepted_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)

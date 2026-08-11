@@ -12,6 +12,7 @@ from app.core.config import get_settings
 from app.core.database import get_db
 from app.core.security import get_current_user
 from app.models.models import EmailConnection, MessageDraft, Business, User, Activity
+from app.services.organizations import get_teammate_user_ids
 
 router = APIRouter(prefix="/api/gmail", tags=["gmail"])
 settings = get_settings()
@@ -65,10 +66,11 @@ def disconnect(db: Session = Depends(get_db), current_user: User = Depends(get_c
 @router.post("/drafts/{message_draft_id}")
 def create_draft(message_draft_id: str, db: Session = Depends(get_db),
                   current_user: User = Depends(get_current_user)):
+    teammate_ids = get_teammate_user_ids(db, current_user.id)
     draft = (
         db.query(MessageDraft)
         .join(Business, Business.id == MessageDraft.business_id)
-        .filter(MessageDraft.id == message_draft_id, Business.owner_user_id == current_user.id)
+        .filter(MessageDraft.id == message_draft_id, Business.owner_user_id.in_(teammate_ids))
         .first()
     )
     if not draft:

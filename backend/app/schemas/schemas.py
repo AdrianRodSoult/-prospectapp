@@ -107,3 +107,22 @@ class PaginatedBusinesses(BaseModel):
     page: int
     page_size: int
     total_pages: int
+
+
+class InviteRequest(BaseModel):
+    email: EmailStr
+    role: str = "member"  # member | admin
+
+
+class MemberOut(BaseModel):
+    user_id: str
+    email: str
+    role: str
+    status: str  # "activo" | "invitación pendiente"
+
+
+class OrganizationOut(BaseModel):
+    id: str
+    name: str
+    my_role: str
+    members: list[MemberOut]

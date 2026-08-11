@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import NavBar from "../../components/NavBar";
 import { api } from "../../lib/api";
 
@@ -89,6 +90,9 @@ export default function ApiKeysSettings() {
           Añade tus propias claves para usar datos y mensajes reales — el coste de cada
           API corre por tu cuenta, tú controlas tu propio gasto.
         </p>
+        <Link href="/settings/team" className="text-sm text-moss underline block mb-6">
+          👥 Ir a ajustes de equipo →
+        </Link>
 
         {message && (
           <div className="rounded-xl bg-mossLight border border-moss/30 text-moss text-sm px-4 py-2.5 mb-4">
