@@ -17,13 +17,16 @@ const STAGES = [
 export default function CRM() {
   const router = useRouter();
   const [businesses, setBusinesses] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     // El tablero Kanban necesita ver todas las etapas a la vez, así que se
     // pide una página grande en vez de paginar por columna (limitación
     // conocida: con más de 100 leads, el tablero no los mostraría todos
     // todavía — pendiente de paginación real por columna más adelante).
-    api.get("/api/businesses?page_size=100").then((r) => setBusinesses(r.data.items));
+    api.get("/api/businesses?page_size=100")
+      .then((r) => setBusinesses(r.data.items))
+      .finally(() => setLoading(false));
   }, []);
 
   return (
@@ -34,7 +37,10 @@ export default function CRM() {
       </div>
       <div className="overflow-x-auto px-4 pb-4">
         <div className="flex gap-3 mx-auto max-w-5xl w-max md:w-auto">
-          {STAGES.map((stage) => {
+          {loading && (
+            <p className="text-sm text-ink/50 py-4">Cargando tablero…</p>
+          )}
+          {!loading && STAGES.map((stage) => {
             const items = businesses.filter((b) => b.crm_stage === stage.key);
             return (
               <div key={stage.key} className="w-64 shrink-0">

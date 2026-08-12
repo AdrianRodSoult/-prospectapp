@@ -6,9 +6,10 @@ import { api } from "../lib/api";
 export default function Profiles() {
   const router = useRouter();
   const [profiles, setProfiles] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    api.get("/api/profiles").then((r) => setProfiles(r.data)).catch(() => {});
+    api.get("/api/profiles").then((r) => setProfiles(r.data)).catch(() => {}).finally(() => setLoading(false));
   }, []);
 
   return (
@@ -25,7 +26,18 @@ export default function Profiles() {
           </button>
         </div>
 
-        {profiles.length === 0 && (
+        {loading && (
+          <div className="space-y-3">
+            {[0, 1].map((i) => (
+              <div key={i} className="rounded-2xl border border-line bg-white p-4 animate-pulse">
+                <div className="h-4 w-32 bg-line/60 rounded mb-2" />
+                <div className="h-3 w-48 bg-line/40 rounded" />
+              </div>
+            ))}
+          </div>
+        )}
+
+        {!loading && profiles.length === 0 && (
           <div className="rounded-2xl border border-dashed border-line bg-white p-6 text-center text-ink/60">
             Aún no tienes perfiles. Crea uno para definir qué vendes y a quién buscas.
           </div>
