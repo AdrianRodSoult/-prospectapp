@@ -438,3 +438,20 @@ class OrganizationInvitation(Base):
     invited_by_user_id = Column(String, ForeignKey("users.id"), nullable=True)
     accepted_at = Column(DateTime, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class Notification(Base):
+    """
+    Notificaciones dentro de la app (sin email ni push por ahora — nada de
+    infraestructura nueva). Se generan automáticamente en dos casos:
+    lead de prioridad alta recién descubierto, y negocio que pasa a la
+    etapa 'respondio' en el CRM.
+    """
+    __tablename__ = "notifications"
+    id = Column(String, primary_key=True, default=gen_uuid)
+    user_id = Column(String, ForeignKey("users.id"), nullable=False, index=True)
+    business_id = Column(String, ForeignKey("businesses.id"), nullable=True)
+    type = Column(String, nullable=False)  # high_priority_lead | business_responded
+    message = Column(String, nullable=False)
+    read = Column(Boolean, default=False, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)

@@ -19,6 +19,7 @@ from app.services.opportunity_engine import detect_opportunities
 from app.services.scoring_engine import compute_score
 from app.services.user_credentials import get_user_credentials
 from app.services.organizations import get_teammate_user_ids
+from app.services.notifications import notify_high_priority_lead, notify_business_responded
 from app.schemas.schemas import (
     SearchCreate, BusinessOut, MessageGenerateRequest, StageUpdate, PaginatedBusinesses,
 )
@@ -86,6 +87,7 @@ def run_search(payload: SearchCreate, response: Response, db: Session = Depends(
             Business.place_id == item.get("place_id"),
             Business.owner_user_id.in_(teammate_ids),
         ).first()
+        is_newly_created = existing is None
         if existing:
             biz = existing
         else:
@@ -233,6 +235,9 @@ def run_search(payload: SearchCreate, response: Response, db: Session = Depends(
         score_row.breakdown = breakdown.details
         score_row.computed_at = datetime.utcnow()
 
+        if is_newly_created and breakdown.priority in ("muy_alta", "alta"):
+            notify_high_priority_lead(db, current_user.id, biz.id, biz.name)
+
         if biz.crm_stage == "descubierto":
             biz.crm_stage = "analizado"
 
@@ -344,6 +349,8 @@ def update_stage(business_id: str, payload: StageUpdate, db: Session = Depends(g
         raise HTTPException(404, "Negocio no encontrado")
     biz.crm_stage = payload.stage
     db.add(Activity(business_id=biz.id, type="stage_change", description=f"Cambiado a {payload.stage}"))
+    if payload.stage == "respondio":
+        notify_business_responded(db, current_user.id, biz.id, biz.name)
     db.commit()
     return {"ok": True, "stage": biz.crm_stage}
 

@@ -1,5 +1,7 @@
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/router";
+import { api } from "../lib/api";
 
 const ITEMS = [
   { href: "/dashboard", label: "Panel", icon: "◧" },
@@ -10,6 +12,14 @@ const ITEMS = [
 
 export default function NavBar() {
   const router = useRouter();
+  const [unreadCount, setUnreadCount] = useState(0);
+
+  useEffect(() => {
+    api.get("/api/notifications?limit=1")
+      .then((r) => setUnreadCount(r.data.unread_count))
+      .catch(() => {});
+  }, [router.pathname]);
+
   return (
     <nav
       className="fixed bottom-0 left-0 right-0 z-40 border-t border-line bg-paper/95 backdrop-blur
@@ -34,13 +44,27 @@ export default function NavBar() {
             );
           })}
         </div>
-        <Link
-          href="/settings/api-keys"
-          className={`hidden md:flex items-center gap-2 text-sm px-2 py-1 rounded-lg
-            ${router.pathname.startsWith("/settings") ? "text-moss font-semibold" : "text-ink/60"}`}
-        >
-          <span>⚙</span> Ajustes
-        </Link>
+        <div className="hidden md:flex items-center gap-4">
+          <Link
+            href="/notifications"
+            className={`relative flex items-center gap-2 text-sm px-2 py-1 rounded-lg
+              ${router.pathname.startsWith("/notifications") ? "text-moss font-semibold" : "text-ink/60"}`}
+          >
+            <span>🔔</span> Notificaciones
+            {unreadCount > 0 && (
+              <span className="absolute -top-1 -right-2 bg-clay text-white text-[10px] rounded-full px-1.5 py-0.5 leading-none">
+                {unreadCount > 9 ? "9+" : unreadCount}
+              </span>
+            )}
+          </Link>
+          <Link
+            href="/settings/api-keys"
+            className={`flex items-center gap-2 text-sm px-2 py-1 rounded-lg
+              ${router.pathname.startsWith("/settings") ? "text-moss font-semibold" : "text-ink/60"}`}
+          >
+            <span>⚙</span> Ajustes
+          </Link>
+        </div>
       </div>
     </nav>
   );
