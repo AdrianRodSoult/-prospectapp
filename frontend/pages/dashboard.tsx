@@ -63,7 +63,6 @@ export default function Dashboard() {
             ⚙ Mis claves de API
           </button>
           <button
-          <button
             onClick={() => router.push("/settings/team")}
             className="w-full md:w-auto rounded-xl border border-line bg-white px-5 py-3 font-medium text-ink/70"
           >
