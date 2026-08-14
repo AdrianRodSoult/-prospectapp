@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/router";
 import { api, saveToken } from "../lib/api";
 
@@ -10,6 +10,14 @@ export default function Home() {
   const [fullName, setFullName] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [sessionExpiredNotice, setSessionExpiredNotice] = useState(false);
+
+  useEffect(() => {
+    if (window.sessionStorage.getItem("session_expired")) {
+      setSessionExpiredNotice(true);
+      window.sessionStorage.removeItem("session_expired");
+    }
+  }, []);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -46,6 +54,11 @@ export default function Home() {
         </div>
 
         <form onSubmit={submit} className="space-y-3 bg-white border border-line rounded-2xl p-5 shadow-sm">
+          {sessionExpiredNotice && (
+            <div className="rounded-xl bg-clay/10 border border-clay/30 text-clay text-sm px-4 py-2.5">
+              Tu sesión ha caducado. Vuelve a iniciar sesión para continuar.
+            </div>
+          )}
           {mode === "register" && (
             <input
               className="w-full rounded-xl border border-line px-4 py-3 text-base"
