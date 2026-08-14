@@ -6,10 +6,14 @@ import { api } from "../lib/api";
 export default function Dashboard() {
   const router = useRouter();
   const [data, setData] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
 
   useEffect(() => {
-    api.get("/api/dashboard").then((r) => setData(r.data)).catch(() => setError(true));
+    api.get("/api/dashboard")
+      .then((r) => setData(r.data))
+      .catch(() => setError(true))
+      .finally(() => setLoading(false));
   }, []);
 
   return (
@@ -19,14 +23,25 @@ export default function Dashboard() {
         <h1 className="font-display text-2xl mb-1">Panel principal</h1>
         <p className="text-sm text-ink/60 mb-6">Resumen de tu prospección hasta ahora.</p>
 
-        {error && (
+        {loading && (
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            {[0, 1, 2, 3].map((i) => (
+              <div key={i} className="rounded-2xl border border-line bg-white p-4 animate-pulse">
+                <div className="h-7 w-12 bg-line/60 rounded mb-2" />
+                <div className="h-3 w-20 bg-line/40 rounded" />
+              </div>
+            ))}
+          </div>
+        )}
+
+        {!loading && error && (
           <div className="rounded-xl border border-line bg-white p-4 text-sm text-ink/60">
             No se pudo cargar el panel. ¿Iniciaste sesión?{" "}
             <button className="text-moss underline" onClick={() => router.push("/")}>Ir a login</button>
           </div>
         )}
 
-        {data && (
+        {!loading && data && (
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
             <StatCard label="Negocios descubiertos" value={data.total_businesses} />
             <StatCard label="Oportunidad alta" value={data.high_priority_count} accent />
@@ -35,7 +50,7 @@ export default function Dashboard() {
           </div>
         )}
 
-        {data && (
+        {!loading && data && (
           <div className="mt-6 bg-white border border-line rounded-2xl p-4">
             <h2 className="font-medium mb-3">Negocios por etapa</h2>
             <div className="space-y-2">

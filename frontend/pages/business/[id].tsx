@@ -12,6 +12,7 @@ export default function BusinessDetail() {
   const router = useRouter();
   const { id } = router.query;
   const [biz, setBiz] = useState<any>(null);
+  const [loadError, setLoadError] = useState(false);
   const [message, setMessage] = useState<any>(null);
   const [generating, setGenerating] = useState(false);
   const [profileId, setProfileId] = useState<string | null>(null);
@@ -23,7 +24,8 @@ export default function BusinessDetail() {
   }, [id]);
 
   function load() {
-    api.get(`/api/businesses/${id}`).then((r) => setBiz(r.data));
+    setLoadError(false);
+    api.get(`/api/businesses/${id}`).then((r) => setBiz(r.data)).catch(() => setLoadError(true));
   }
 
   async function updateStage(stage: string) {
@@ -42,7 +44,31 @@ export default function BusinessDetail() {
     }
   }
 
-  if (!biz) return <div className="min-h-screen bg-paper" />;
+  if (loadError) {
+    return (
+      <div className="min-h-screen bg-paper flex flex-col items-center justify-center px-6 text-center">
+        <p className="text-ink/60 mb-4">No se pudo cargar este negocio. Puede que ya no exista o no tengas acceso.</p>
+        <button onClick={() => router.push("/results")} className="text-moss underline text-sm">
+          ← Volver a resultados
+        </button>
+      </div>
+    );
+  }
+
+  if (!biz) {
+    return (
+      <div className="min-h-screen bg-paper pb-24 md:pt-20 md:pb-10">
+        <NavBar />
+        <div className="mx-auto max-w-2xl px-4 pt-6 md:pt-0">
+          <div className="animate-pulse space-y-4">
+            <div className="h-8 w-2/3 bg-line/50 rounded" />
+            <div className="h-24 bg-white border border-line rounded-2xl" />
+            <div className="h-32 bg-white border border-line rounded-2xl" />
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-paper pb-24 md:pt-20 md:pb-10">
