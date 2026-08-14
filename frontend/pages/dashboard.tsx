@@ -68,6 +68,12 @@ export default function Dashboard() {
           >
             👥 Mi equipo
           </button>
+          <button
+            onClick={() => router.push("/notifications")}
+            className="w-full md:w-auto rounded-xl border border-line bg-white px-5 py-3 font-medium text-ink/70"
+          >
+            🔔 Notificaciones
+          </button>
         </div>
       </div>
     </div>

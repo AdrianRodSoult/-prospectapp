@@ -7,7 +7,7 @@ from slowapi.middleware import SlowAPIMiddleware
 from app.core.config import get_settings
 from app.core.database import Base, engine
 from app.core.rate_limit import limiter
-from app.api import auth, profiles, search, export, gmail, compliance, api_keys, organizations
+from app.api import auth, profiles, search, export, gmail, compliance, api_keys, organizations, notifications
 
 settings = get_settings()
 
@@ -45,6 +45,7 @@ app.include_router(gmail.router)
 app.include_router(compliance.router)
 app.include_router(api_keys.router)
 app.include_router(organizations.router)
+app.include_router(notifications.router)
 
 
 @app.get("/api/health")

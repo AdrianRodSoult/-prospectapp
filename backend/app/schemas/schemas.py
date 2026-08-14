@@ -126,3 +126,19 @@ class OrganizationOut(BaseModel):
     name: str
     my_role: str
     members: list[MemberOut]
+
+
+class NotificationOut(BaseModel):
+    id: str
+    business_id: str | None
+    type: str
+    message: str
+    read: bool
+    created_at: datetime
+    class Config:
+        from_attributes = True
+
+
+class NotificationsResponse(BaseModel):
+    items: list[NotificationOut]
+    unread_count: int
