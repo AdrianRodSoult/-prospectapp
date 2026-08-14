@@ -7,6 +7,7 @@ from app.core.rate_limit import limiter
 from app.core.security import hash_password, verify_password, create_access_token, get_current_user
 from app.models.models import User
 from app.schemas.schemas import UserCreate, UserOut, Token
+from app.services.organizations import resolve_signup_organization
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 
@@ -18,6 +19,8 @@ def register(request: Request, payload: UserCreate, db: Session = Depends(get_db
         raise HTTPException(400, "Ese email ya está registrado")
     user = User(email=payload.email, hashed_password=hash_password(payload.password), full_name=payload.full_name)
     db.add(user)
+    db.flush()
+    resolve_signup_organization(db, user.id, payload.email)
     db.commit()
     db.refresh(user)
     return user

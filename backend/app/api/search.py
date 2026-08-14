@@ -18,6 +18,7 @@ from app.providers.ai_provider import get_ai_provider
 from app.services.opportunity_engine import detect_opportunities
 from app.services.scoring_engine import compute_score
 from app.services.user_credentials import get_user_credentials
+from app.services.organizations import get_teammate_user_ids
 from app.schemas.schemas import (
     SearchCreate, BusinessOut, MessageGenerateRequest, StageUpdate, PaginatedBusinesses,
 )
@@ -37,8 +38,9 @@ def _urldomain(url: str | None) -> str | None:
 @router.post("/searches", response_model=list[BusinessOut])
 def run_search(payload: SearchCreate, response: Response, db: Session = Depends(get_db),
                 current_user: User = Depends(get_current_user)):
+    teammate_ids = get_teammate_user_ids(db, current_user.id)
     profile = db.query(ProspectingProfile).filter(
-        ProspectingProfile.id == payload.profile_id, ProspectingProfile.user_id == current_user.id
+        ProspectingProfile.id == payload.profile_id, ProspectingProfile.user_id.in_(teammate_ids)
     ).first()
     if not profile:
         raise HTTPException(404, "Perfil no encontrado")
@@ -76,12 +78,13 @@ def run_search(payload: SearchCreate, response: Response, db: Session = Depends(
     created: list[Business] = []
 
     for item in result.businesses:
-        # Deduplicación por place_id, PERO solo dentro de los negocios del mismo
-        # usuario/cliente. Así dos clientes distintos nunca comparten fila,
-        # aunque busquen el mismo negocio real.
+        # Deduplicación por place_id dentro del EQUIPO (no solo del usuario que
+        # busca): si un compañero ya guardó este negocio, se reutiliza su fila
+        # en vez de crear una copia — así el equipo comparte el mismo lead.
+        # Sigue habiendo aislamiento total entre equipos distintos.
         existing = db.query(Business).filter(
             Business.place_id == item.get("place_id"),
-            Business.owner_user_id == current_user.id,
+            Business.owner_user_id.in_(teammate_ids),
         ).first()
         if existing:
             biz = existing
@@ -263,13 +266,14 @@ def list_businesses(search_id: str | None = None, min_score: int | None = None,
     """
     page = max(page, 1)
     page_size = max(1, min(page_size, 100))
+    teammate_ids = get_teammate_user_ids(db, current_user.id)
 
     # LEFT JOIN a LeadScore: un negocio sin score todavía cuenta como 0,
     # igual que el comportamiento anterior en Python.
     q = (
         db.query(Business)
         .outerjoin(LeadScore, LeadScore.business_id == Business.id)
-        .filter(Business.owner_user_id == current_user.id)
+        .filter(Business.owner_user_id.in_(teammate_ids))
     )
     if search_id:
         q = q.filter(Business.search_id == search_id)
@@ -297,8 +301,9 @@ def list_businesses(search_id: str | None = None, min_score: int | None = None,
 @router.get("/businesses/{business_id}")
 def get_business_detail(business_id: str, db: Session = Depends(get_db),
                          current_user: User = Depends(get_current_user)):
+    teammate_ids = get_teammate_user_ids(db, current_user.id)
     biz = db.query(Business).filter(
-        Business.id == business_id, Business.owner_user_id == current_user.id
+        Business.id == business_id, Business.owner_user_id.in_(teammate_ids)
     ).first()
     if not biz:
         raise HTTPException(404, "Negocio no encontrado")
@@ -331,8 +336,9 @@ def get_business_detail(business_id: str, db: Session = Depends(get_db),
 @router.patch("/businesses/{business_id}/stage")
 def update_stage(business_id: str, payload: StageUpdate, db: Session = Depends(get_db),
                   current_user: User = Depends(get_current_user)):
+    teammate_ids = get_teammate_user_ids(db, current_user.id)
     biz = db.query(Business).filter(
-        Business.id == business_id, Business.owner_user_id == current_user.id
+        Business.id == business_id, Business.owner_user_id.in_(teammate_ids)
     ).first()
     if not biz:
         raise HTTPException(404, "Negocio no encontrado")
@@ -345,11 +351,12 @@ def update_stage(business_id: str, payload: StageUpdate, db: Session = Depends(g
 @router.post("/messages/generate")
 def generate_message(payload: MessageGenerateRequest, db: Session = Depends(get_db),
                       current_user: User = Depends(get_current_user)):
+    teammate_ids = get_teammate_user_ids(db, current_user.id)
     biz = db.query(Business).filter(
-        Business.id == payload.business_id, Business.owner_user_id == current_user.id
+        Business.id == payload.business_id, Business.owner_user_id.in_(teammate_ids)
     ).first()
     profile = db.query(ProspectingProfile).filter(
-        ProspectingProfile.id == payload.profile_id, ProspectingProfile.user_id == current_user.id
+        ProspectingProfile.id == payload.profile_id, ProspectingProfile.user_id.in_(teammate_ids)
     ).first()
     if not biz or not profile:
         raise HTTPException(404, "Negocio o perfil no encontrado")
@@ -397,7 +404,8 @@ def generate_message(payload: MessageGenerateRequest, db: Session = Depends(get_
 
 @router.get("/dashboard")
 def dashboard(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    all_biz = db.query(Business).filter(Business.owner_user_id == current_user.id).all()
+    teammate_ids = get_teammate_user_ids(db, current_user.id)
+    all_biz = db.query(Business).filter(Business.owner_user_id.in_(teammate_ids)).all()
     total = len(all_biz)
     by_stage: dict[str, int] = {}
     for b in all_biz:
